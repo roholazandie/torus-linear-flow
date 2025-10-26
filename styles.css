@@ -190,6 +190,15 @@ body {
     background-color: #334155;
 }
 
+.btn-blue {
+    background-color: #2563eb;
+    color: white;
+}
+
+.btn-blue:hover {
+    background-color: #1d4ed8;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     body {

@@ -9,9 +9,9 @@ let t = 0;
 let camera = {
     theta: 0,      // Horizontal angle (azimuth)
     phi: Math.PI / 3,  // Vertical angle (elevation)
-    distance: 250,  // Distance from origin (closer view)
-    minDistance: 100,
-    maxDistance: 1000
+    distance: 400,  // Distance from origin
+    minDistance: 50,
+    maxDistance: 1200
 };
 
 // Mouse state
@@ -94,73 +94,73 @@ function getParticleColor(index, total) {
     return `hsl(${hue}, 70%, 60%)`;
 }
 
-// Draw wireframe torus
-function drawWireframeTorus() {
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.3;
+// Draw enhanced torus mesh
+function drawTorusMesh() {
+    const meshRes = 40;
+    const torusPoints = [];
 
-    // Draw meridians (lines of constant theta2)
-    for (let i = 0; i < 16; i++) {
-        const theta2 = (i / 16) * 2 * Math.PI;
+    // Generate torus mesh points
+    for (let i = 0; i <= meshRes; i++) {
+        const u = (i / meshRes) * 2 * Math.PI;
+        const row = [];
+        for (let j = 0; j <= meshRes; j++) {
+            const v = (j / meshRes) * 2 * Math.PI;
+            const { x, y, z } = toXYZ(u, v);
+            const proj = project(x, y, z);
+            row.push(proj);
+        }
+        torusPoints.push(row);
+    }
+
+    // Fill torus with semi-transparent blue
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.08)';
+    for (let i = 0; i < meshRes; i++) {
+        for (let j = 0; j < meshRes; j++) {
+            ctx.beginPath();
+            ctx.moveTo(torusPoints[i][j].x, torusPoints[i][j].y);
+            ctx.lineTo(torusPoints[i+1][j].x, torusPoints[i+1][j].y);
+            ctx.lineTo(torusPoints[i+1][j+1].x, torusPoints[i+1][j+1].y);
+            ctx.lineTo(torusPoints[i][j+1].x, torusPoints[i][j+1].y);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+
+    // Draw pink mesh lines
+    ctx.strokeStyle = 'rgba(236, 72, 153, 0.3)';
+    ctx.lineWidth = 0.5;
+
+    // Longitudinal lines
+    for (let i = 0; i < torusPoints.length; i += 4) {
         ctx.beginPath();
-        let first = true;
-        
-        for (let j = 0; j <= 32; j++) {
-            const theta1 = (j / 32) * 2 * Math.PI;
-            const { x, y, z } = toXYZ(theta1, theta2);
-            const projected = project(x, y, z);
-            
-            if (projected.z > -camera.distance * 0.8) {
-                if (first) {
-                    ctx.moveTo(projected.x, projected.y);
-                    first = false;
-                } else {
-                    ctx.lineTo(projected.x, projected.y);
-                }
-            } else {
-                first = true;
-            }
+        for (let j = 0; j < torusPoints[i].length; j++) {
+            const p = torusPoints[i][j];
+            if (j === 0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
         }
         ctx.stroke();
     }
 
-    // Draw parallels (lines of constant theta1)
-    for (let i = 0; i < 8; i++) {
-        const theta1 = (i / 8) * 2 * Math.PI;
+    // Meridional lines
+    for (let j = 0; j < torusPoints[0].length; j += 4) {
         ctx.beginPath();
-        let first = true;
-        
-        for (let j = 0; j <= 32; j++) {
-            const theta2 = (j / 32) * 2 * Math.PI;
-            const { x, y, z } = toXYZ(theta1, theta2);
-            const projected = project(x, y, z);
-            
-            if (projected.z > -camera.distance * 0.8) {
-                if (first) {
-                    ctx.moveTo(projected.x, projected.y);
-                    first = false;
-                } else {
-                    ctx.lineTo(projected.x, projected.y);
-                }
-            } else {
-                first = true;
-            }
+        for (let i = 0; i < torusPoints.length; i++) {
+            const p = torusPoints[i][j];
+            if (i === 0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
         }
         ctx.stroke();
     }
-    
-    ctx.globalAlpha = 1;
 }
 
 // Main draw function
 function draw() {
     // Clear canvas
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-    // Draw wireframe torus
-    drawWireframeTorus();
+    // Draw torus mesh
+    drawTorusMesh();
 
     // Draw particles and their trails
     const ratio = p / q;
@@ -178,8 +178,6 @@ function draw() {
         ctx.beginPath();
 
         const tracePoints = 200;
-        let firstPoint = true;
-        
         for (let j = 0; j <= tracePoints; j++) {
             const traceT = (j / tracePoints) * currentT;
             const theta1 = startPhase + traceT;
@@ -188,17 +186,8 @@ function draw() {
             const { x, y, z } = toXYZ(theta1, theta2);
             const proj = project(x, y, z);
 
-            // Only draw if the point is visible
-            if (proj.z > -camera.distance * 0.9) {
-                if (firstPoint) {
-                    ctx.moveTo(proj.x, proj.y);
-                    firstPoint = false;
-                } else {
-                    ctx.lineTo(proj.x, proj.y);
-                }
-            } else {
-                firstPoint = true;
-            }
+            if (j === 0) ctx.moveTo(proj.x, proj.y);
+            else ctx.lineTo(proj.x, proj.y);
         }
         ctx.stroke();
 
@@ -209,24 +198,16 @@ function draw() {
         const { x, y, z } = toXYZ(theta1, theta2);
         const pos = project(x, y, z);
 
-        if (pos.z > -camera.distance * 0.9) {
-            const size = Math.max(3, 8 - pos.z * 0.01);
-            
-            // Draw particle with glow
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.arc(pos.x, pos.y, size, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            // Add glow effect
-            ctx.shadowColor = color;
-            ctx.shadowBlur = size * 2;
-            ctx.beginPath();
-            ctx.arc(pos.x, pos.y, size * 0.5, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-        }
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
     }
+
+    ctx.globalAlpha = 1.0;
 }
 
 // Animation loop
@@ -277,8 +258,18 @@ function handleMouseUp() {
 
 function handleWheel(e) {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 1.1 : 0.9;
-    camera.distance = Math.max(camera.minDistance, Math.min(camera.maxDistance, camera.distance * delta));
+    // Enhanced zoom with more range and smoother control
+    const zoomSpeed = 1.0; // Adjust sensitivity
+    const delta = e.deltaY;
+    
+    // Zoom in/out with mouse wheel - exponential for smoother feel
+    const zoomFactor = 1 + (delta * zoomSpeed * 0.001);
+    const newDistance = camera.distance * zoomFactor;
+    
+    camera.distance = Math.max(
+        camera.minDistance, 
+        Math.min(camera.maxDistance, newDistance)
+    );
 }
 
 // Touch event handlers
@@ -327,6 +318,36 @@ function updateUI() {
     playPauseBtn.className = isRunning ? 'btn btn-orange' : 'btn btn-green';
 }
 
+// Snapshot functionality
+function handleSnapshot() {
+    if (!canvas) return;
+
+    // Create a high-quality snapshot
+    const tempCanvas = document.createElement('canvas');
+    const scale = 2; // 2x resolution for higher quality
+    tempCanvas.width = CANVAS_SIZE * scale;
+    tempCanvas.height = CANVAS_SIZE * scale;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Scale up for higher quality
+    tempCtx.scale(scale, scale);
+    
+    // Draw the current canvas content
+    tempCtx.drawImage(canvas, 0, 0);
+    
+    // Convert to high-quality PNG
+    tempCanvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `torus-flow-${p}-${q}-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 'image/png', 1.0); // Maximum quality PNG
+}
+
 // Initialize the application
 function init() {
     canvas = document.getElementById('torusCanvas');
@@ -372,6 +393,8 @@ function init() {
     document.getElementById('resetBtn').addEventListener('click', () => {
         t = 0;
     });
+    
+    document.getElementById('snapshotBtn').addEventListener('click', handleSnapshot);
     
     // Initialize UI
     updateUI();
